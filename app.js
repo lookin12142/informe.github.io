@@ -1,5 +1,11 @@
 const WEBHOOK_URL = "https://n8n.smartclic.pe/webhook/0d8b7514-cfbc-4b0f-8d30-466d734fa16a";
 const ANALYSIS_WEBHOOK_URL = "https://n8n.smartclic.pe/webhook/analisis";
+const SAVE_WEBHOOK_URL = "https://n8n.smartclic.pe/webhook/data"; 
+const FALTANTES_FETCH_URL = "https://n8n.smartclic.pe/webhook/Faltantes";
+
+const FALTANTES_SAVE_URL = "";
+// Also accept singular endpoint if provided by the server
+const FALTANTE_FETCH_URL = "https://n8n.smartclic.pe/webhook/Faltante";
 
 async function parseResponseToData(res) {
   const ct = (res.headers.get('content-type') || '').toLowerCase();
@@ -323,6 +329,9 @@ function renderAnalysis(obj) {
   if (!container) return;
   container.innerHTML = '';
 
+  // store last analysis object globally so it can be sent to persistence endpoint
+  window.LAST_ANALYSIS = obj;
+
   if (!obj || typeof obj !== 'object') {
     container.textContent = 'Respuesta de análisis no válida.';
     return;
@@ -336,7 +345,7 @@ function renderAnalysis(obj) {
     const table = document.createElement('table');
     table.className = 'analysis-table';
     const thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>ID</th><th>Pregunta</th><th>Respuesta</th><th>Calificación</th><th>Motivo</th></tr>';
+    thead.innerHTML = '<tr><th>ID</th><th>Pregunta</th><th>Respuesta</th><th>Calificación</th><th>Motivo</th><th>Acciones</th></tr>';
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     obj.evaluacion.forEach(item => {
@@ -347,6 +356,28 @@ function renderAnalysis(obj) {
       const cal = item.calificacion != null ? String(item.calificacion) : '';
       const motivo = escapeHtml(String(item.motivo || ''));
       tr.innerHTML = `<td>${id}</td><td>${pregunta}</td><td>${respuesta}</td><td>${cal}</td><td>${motivo}</td>`;
+
+      // add action cell with save button for this evaluation item
+      const actionTd = document.createElement('td');
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn primary large';
+      saveBtn.textContent = 'Guardar';
+      saveBtn.addEventListener('click', async (ev) => {
+        try {
+          saveBtn.disabled = true;
+          const prev = saveBtn.textContent;
+          saveBtn.textContent = 'Guardando...';
+          await saveSingleEvaluation(item, obj.conversation_id);
+          saveBtn.textContent = 'Guardado';
+        } catch (e) {
+          console.error('Error guardando evaluación:', e);
+          alert('Error al guardar la evaluación. Revisa la consola.');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Guardar';
+        }
+      });
+      actionTd.appendChild(saveBtn);
+      tr.appendChild(actionTd);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -369,6 +400,210 @@ function renderAnalysis(obj) {
     `;
     container.appendChild(div);
   }
+}
+
+// Enviar el análisis almacenado al endpoint de persistencia
+async function saveAnalysisData() {
+  const obj = window.LAST_ANALYSIS;
+  if (!obj) {
+    alert('No hay datos de análisis para guardar. Ejecuta primero el análisis.');
+    return;
+  }
+
+  try {
+    const res = await fetch(SAVE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(obj)
+    });
+
+    if (!res.ok) {
+      console.error('Guardar análisis: HTTP', res.status, res.statusText);
+      alert('Error al guardar el análisis. Revisa la consola para más detalles.');
+      return;
+    }
+
+    // try to read response text/json for confirmation
+    let text = '';
+    try { text = await res.text(); } catch(e) { text = ''; }
+    console.log('Guardar análisis: respuesta del servidor:', text);
+    alert('Análisis guardado correctamente.');
+  } catch (err) {
+    console.error('Error enviando análisis al endpoint de guardado:', err);
+    alert('Error al enviar el análisis al servidor. Revisa la consola.');
+  }
+}
+
+// Enviar una sola evaluación al endpoint de persistencia
+async function saveSingleEvaluation(item, conversation_id) {
+  if (!item) throw new Error('Item vacío');
+
+  const payload = {
+    conversation_id: conversation_id || (window.LAST_ANALYSIS && window.LAST_ANALYSIS.conversation_id) || null,
+    evaluacion: item,
+    saved_at: new Date().toISOString()
+  };
+
+  const res = await fetch(SAVE_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error('Guardar single eval fallo: ' + res.status + ' ' + text);
+  }
+
+  return true;
+}
+
+// --- FALTANTES: funciones para cargar y marcar estados (completo / faltante)
+// loadFaltantes: obtiene la lista desde FALTANTES_FETCH_URL y la muestra en el DOM
+async function loadFaltantes() {
+  const wrap = document.getElementById('faltantes-wrap');
+  if (wrap) wrap.innerHTML = 'Cargando...';
+  try {
+    // Build cache-busted URL to avoid 304 Not Modified responses from intermediate caches
+    const ts = Date.now();
+    const primaryUrl = FALTANTES_FETCH_URL + (FALTANTES_FETCH_URL.includes('?') ? '&' : '?') + '_ts=' + ts;
+    const singularUrl = FALTANTE_FETCH_URL + (FALTANTE_FETCH_URL.includes('?') ? '&' : '?') + '_ts=' + ts;
+
+    // Use no-store to force network request
+    let res = await fetch(primaryUrl, { cache: 'no-store', mode: 'cors' });
+    if (!res.ok) {
+      console.warn('Faltantes fetch failed, trying singular endpoint:', res.status);
+      res = await fetch(singularUrl, { cache: 'no-store', mode: 'cors' });
+    }
+
+    if (res.status === 304) {
+      // 304 means Not Modified - no body available; force a cache-busted request
+      const forceUrl = primaryUrl + '&force=' + Date.now();
+      res = await fetch(forceUrl, { cache: 'no-store', mode: 'cors' });
+    }
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' ' + t);
+    }
+
+    // Try to parse JSON - if the server returns 304 there will be no body
+    const text = await res.text();
+    if (!text) {
+      throw new Error('Respuesta vacía del servidor (posible problema de caché o 304).');
+    }
+    const data = JSON.parse(text);
+    renderFaltantes(data);
+  } catch (err) {
+    console.error('Error cargando faltantes:', err);
+    if (wrap) wrap.innerHTML = 'Error cargando faltantes. Revisa la consola.';
+    // If it's likely a CORS error, show a clearer hint
+    if (err instanceof TypeError && /Failed to fetch/i.test(err.message)) {
+      alert('Error de red/CORS al intentar cargar faltantes. Asegúrate de que el servidor n8n permita CORS (Access-Control-Allow-Origin) para este origen, o abre la página desde http://localhost usando un servidor local. Revisa la consola para más detalles.');
+    } else {
+      alert('Error cargando faltantes. Revisa la consola. ' + (err.message || ''));
+    }
+  }
+}
+
+function renderFaltantes(items) {
+  const wrap = document.getElementById('faltantes-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  if (!Array.isArray(items) || items.length === 0) {
+    wrap.textContent = 'No se encontraron faltantes.';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'faltantes-table';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>ID</th><th>Created At</th><th>Updated At</th><th>Pregunta</th><th>Respuesta</th><th>Calificación</th><th>Motivo</th><th>ID Chat</th><th>Acciones</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+
+  items.forEach(it => {
+    const tr = document.createElement('tr');
+    const id = it.id != null ? it.id : '';
+    const createdAt = it.createdAt || it.created_at || '';
+    const updatedAt = it.updatedAt || it.updated_at || '';
+    const pregunta = escapeHtml(String(it.Pregunta || it.pregunta || ''));
+    const respuesta = escapeHtml(String(it.respuesta || it.Respuesta || ''));
+    const cal = it.calificacion != null ? String(it.calificacion) : '';
+    const motivo = escapeHtml(String(it.motivo || ''));
+    const id_chat = it.id_chat || it.conversation_id || '';
+
+    tr.innerHTML = `<td>${id}</td><td>${createdAt}</td><td>${updatedAt}</td><td>${pregunta}</td><td>${respuesta}</td><td>${cal}</td><td>${motivo}</td><td>${id_chat}</td>`;
+
+    const actionsTd = document.createElement('td');
+    const actionsWrap = document.createElement('div');
+    actionsWrap.className = 'faltante-item-actions';
+
+    const btnComplete = document.createElement('button');
+    btnComplete.className = 'btn success small';
+    btnComplete.textContent = 'Marcar completo';
+    btnComplete.addEventListener('click', async () => {
+      try {
+        btnComplete.disabled = true;
+        btnComplete.textContent = 'Guardando...';
+        await saveFaltanteStatus({ id, id_chat }, 'completo');
+        btnComplete.textContent = 'Completo';
+      } catch (e) {
+        console.error(e);
+        alert('Error guardando estado. Revisa la consola.');
+        btnComplete.disabled = false;
+        btnComplete.textContent = 'Marcar completo';
+      }
+    });
+
+    const btnMissing = document.createElement('button');
+    btnMissing.className = 'btn warn small';
+    btnMissing.textContent = 'Marcar faltante';
+    btnMissing.addEventListener('click', async () => {
+      try {
+        btnMissing.disabled = true;
+        btnMissing.textContent = 'Guardando...';
+        await saveFaltanteStatus({ id, id_chat }, 'faltante');
+        btnMissing.textContent = 'Faltante';
+      } catch (e) {
+        console.error(e);
+        alert('Error guardando estado. Revisa la consola.');
+        btnMissing.disabled = false;
+        btnMissing.textContent = 'Marcar faltante';
+      }
+    });
+
+    actionsWrap.appendChild(btnComplete);
+    actionsWrap.appendChild(btnMissing);
+    actionsTd.appendChild(actionsWrap);
+    tr.appendChild(actionsTd);
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+}
+
+// Guardar estado de un faltante (si FALTANTES_SAVE_URL está vacío, solo loguea el payload)
+async function saveFaltanteStatus(ids, status) {
+  const payload = { ids, status, saved_at: new Date().toISOString() };
+  if (!FALTANTES_SAVE_URL) {
+    console.log('[saveFaltanteStatus] payload (no enviado, FALTANTES_SAVE_URL vacío):', payload);
+    alert('FALTANTES_SAVE_URL no está configurado. El payload se ha mostrado en la consola.');
+    return true;
+  }
+
+  const res = await fetch(FALTANTES_SAVE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(()=>'');
+    throw new Error('HTTP ' + res.status + ' ' + t);
+  }
+  return true;
 }
 
 function parseDate(s) {

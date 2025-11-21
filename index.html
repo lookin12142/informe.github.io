@@ -33,6 +33,9 @@
             </div>
 
             <div id="conversations-list" class="conversations-list">Lista de conversaciones...</div>
+            <div style="margin-top:12px">
+              <button class="btn" onclick="loadFaltantes()">Cargar faltantes</button>
+            </div>
           </section>
         </aside>
 
@@ -50,6 +53,15 @@
         <div id="analysis-table-wrap" class="analysis-table-wrap">Aquí aparecerá la tabla de evaluación...</div>
       </div>
     </section>
+
+    <!-- FALTANTES: sección donde se muestran los ítems faltantes (dentro de .app) -->
+    <section id="faltantes-container" class="faltantes-container">
+      <div class="faltantes-inner">
+        <h4>Faltantes</h4>
+        <div id="faltantes-wrap">Pulsa "Cargar faltantes" en la barra lateral para obtener los datos.</div>
+      </div>
+    </section>
+
     <footer class="footer">
       <small>SmartReason — Informe_dInamico</small>
     </footer>
