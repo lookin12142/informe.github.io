@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Visor de Chats - SmartClic</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <h1>Informe Dinámico</h1>
+        <p class="subtitle">Sube un archivo <strong>.txt</strong> para procesar y ver las conversaciones agrupadas.</p>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="layout">
+        <aside class="sidebar">
+          <section class="uploader">
+            <label class="file-label">
+              <input type="file" id="fileInput" accept=".txt">
+              <span class="file-btn">Seleccionar archivo (.txt)</span>
+            </label>
+
+            <div class="actions">
+              <button class="btn primary" onclick="uploadFile()">Procesar archivo</button>
+              <button class="btn" onclick="loadMessages()">Cargar mensajes (GET)</button>
+              <button class="btn" onclick="sendForAnalysis()">Enviar para análisis</button>
+              <button class="btn" onclick="document.getElementById('chat-container').innerHTML = ''">Limpiar</button>
+            </div>
+
+            <div id="conversations-list" class="conversations-list">Lista de conversaciones...</div>
+          </section>
+        </aside>
+
+        <section class="content">
+          <section id="chat-container" class="chat-container">Aquí aparecerán los mensajes...</section>
+    </main>
+    </section>
+          <section id="analysis-container" class="analysis-container">
+            <h4 id="analysis-title">Análisis conversación</h4>
+            <div id="analysis-summary" class="analysis-summary">Resultados del análisis aparecerán aquí.</div>
+            <div id="analysis-table-wrap" class="analysis-table-wrap">Aquí aparecerá la tabla de evaluación...</div>
+          </section>
+      </div>
+    <footer class="footer">
+      <small>SmartReason — Informe_dInamico</small>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
