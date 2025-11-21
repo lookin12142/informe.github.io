@@ -38,14 +38,18 @@
 
         <section class="content">
           <section id="chat-container" class="chat-container">Aquí aparecerán los mensajes...</section>
-    </main>
-    </section>
-          <section id="analysis-container" class="analysis-container">
-            <h4 id="analysis-title">Análisis conversación</h4>
-            <div id="analysis-summary" class="analysis-summary">Resultados del análisis aparecerán aquí.</div>
-            <div id="analysis-table-wrap" class="analysis-table-wrap">Aquí aparecerá la tabla de evaluación...</div>
-          </section>
+        </section>
       </div>
+    </main>
+    
+    <!-- Analysis panel moved outside of <main> so it can expand independently -->
+    <section id="analysis-container" class="analysis-container analysis-full">
+      <div class="analysis-inner">
+        <h4 id="analysis-title">Análisis conversación</h4>
+        <div id="analysis-summary" class="analysis-summary">Resultados del análisis aparecerán aquí.</div>
+        <div id="analysis-table-wrap" class="analysis-table-wrap">Aquí aparecerá la tabla de evaluación...</div>
+      </div>
+    </section>
     <footer class="footer">
       <small>SmartReason — Informe_dInamico</small>
     </footer>
