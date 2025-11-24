@@ -4,8 +4,82 @@ const SAVE_WEBHOOK_URL = "https://n8n.smartclic.pe/webhook/data";
 const FALTANTES_FETCH_URL = "https://n8n.smartclic.pe/webhook/Faltantes";
 
 const FALTANTES_SAVE_URL = "";
-// Also accept singular endpoint if provided by the server
 const FALTANTE_FETCH_URL = "https://n8n.smartclic.pe/webhook/Faltante";
+
+// Enviar una sola fecha al webhook principal
+async function sendDate() {
+  const dateEl = document.getElementById('filterDate');
+  if (!dateEl) { alert('No se ha encontrado el campo de fecha.'); return; }
+  const date = dateEl.value;
+  if (!date) { alert('Selecciona una fecha.'); return; }
+
+  const payload = { date };
+
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      cache: 'no-store'
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      console.error('sendDate: server error', res.status, t);
+      alert('El servidor devolvió un error al enviar la fecha. Revisa la consola.');
+      return;
+    }
+
+    const text = await res.text();
+    if (!text) {
+      alert('Respuesta vacía del servidor. Revisa la consola si necesitas más detalles.');
+      return;
+    }
+
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch (e) { parsed = null; }
+
+    // Normalizar respuestas con mensajes y renderizar
+    if (Array.isArray(parsed)) {
+      const isWrapper = parsed.every(it => it && (Array.isArray(it.messages) || (it.conversation_id && !it.message_id)));
+      if (isWrapper) {
+        const flattened = [];
+        parsed.forEach(wrapper => {
+          if (Array.isArray(wrapper.messages)) {
+            const convId = wrapper.conversation_id || null;
+            wrapper.messages.forEach(m => flattened.push({ ...(m || {}), conversation_id: m.conversation_id || convId }));
+          }
+        });
+        renderGroupedConversations(flattened);
+        return;
+      }
+
+      const looksLikeMessages = parsed.every(p => p && (p.message_id || p.text || p.conversation_id));
+      if (looksLikeMessages) {
+        renderGroupedConversations(parsed);
+        return;
+      }
+    }
+
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.messages)) {
+      const mapped = parsed.messages.map(m => ({ ...(m || {}), conversation_id: m.conversation_id || parsed.conversation_id }));
+      renderGroupedConversations(mapped);
+      return;
+    }
+
+    // Mostrar respuesta cruda si no es lista de mensajes
+    const analysisContainer = document.getElementById('analysis-container');
+    if (analysisContainer) {
+      analysisContainer.innerHTML = '<pre style="white-space:pre-wrap;">' + escapeHtml(text) + '</pre>';
+    } else {
+      alert('Respuesta recibida:\n' + text);
+    }
+
+  } catch (err) {
+    console.error('sendDate error', err);
+    alert('Error enviando la fecha. Revisa la consola para más detalles.');
+  }
+}
 
 async function parseResponseToData(res) {
   const ct = (res.headers.get('content-type') || '').toLowerCase();

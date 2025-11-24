@@ -20,15 +20,13 @@
       <div class="layout">
         <aside class="sidebar">
           <section class="uploader">
-            <label class="file-label">
-              <input type="file" id="fileInput" accept=".txt">
-              <span class="file-btn">Seleccionar archivo (.txt)</span>
-            </label>
+            <div class="date-range">
+              <label>Fecha<br><input type="date" id="filterDate"></label>
+            </div>
 
             <div class="actions">
-              <button class="btn primary" onclick="uploadFile()">Procesar archivo</button>
+              <button class="btn primary" onclick="sendDate()">Filtrar por fecha</button>
               <button class="btn" onclick="loadMessages()">Cargar mensajes (GET)</button>
-              <button class="btn" onclick="sendForAnalysis()">Enviar para análisis</button>
               <button class="btn" onclick="document.getElementById('chat-container').innerHTML = ''">Limpiar</button>
             </div>
 
@@ -45,7 +43,6 @@
       </div>
     </main>
     
-    <!-- Analysis panel moved outside of <main> so it can expand independently -->
     <section id="analysis-container" class="analysis-container analysis-full">
       <div class="analysis-inner">
         <h4 id="analysis-title">Análisis conversación</h4>
@@ -54,7 +51,6 @@
       </div>
     </section>
 
-    <!-- FALTANTES: sección donde se muestran los ítems faltantes (dentro de .app) -->
     <section id="faltantes-container" class="faltantes-container">
       <div class="faltantes-inner">
         <h4>Faltantes</h4>
